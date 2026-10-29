@@ -8,6 +8,8 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { Role } from '../users/user.entity';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -15,31 +17,29 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 // Toutes les routes de ce contrôleur commencent par /categories
 @Controller('categories')
 export class CategoriesController {
-  // NestJS nous fournit le service automatiquement (injection de dépendance)
   constructor(private readonly categoriesService: CategoriesService) {}
 
-  // POST /categories : créer une catégorie.
-  // @Body() récupère le JSON envoyé, et le valide avec CreateCategoryDto.
+  // POST /categories : créer une catégorie (gérant seulement)
+  @Roles(Role.MANAGER)
   @Post()
   create(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(dto);
   }
 
-  // GET /categories : lister toutes les catégories
+  // GET /categories : lister les catégories (tout utilisateur connecté)
   @Get()
   findAll() {
     return this.categoriesService.findAll();
   }
 
-  // GET /categories/:id : voir une catégorie.
-  // @Param('id') récupère l'id dans l'URL (ex. /categories/3),
-  // ParseIntPipe le convertit en nombre et refuse si ce n'est pas un nombre.
+  // GET /categories/:id : voir une catégorie (tout utilisateur connecté)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.findOne(id);
   }
 
-  // PATCH /categories/:id : modifier une catégorie (seulement les champs envoyés)
+  // PATCH /categories/:id : modifier une catégorie (gérant seulement)
+  @Roles(Role.MANAGER)
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -48,7 +48,8 @@ export class CategoriesController {
     return this.categoriesService.update(id, dto);
   }
 
-  // DELETE /categories/:id : supprimer une catégorie
+  // DELETE /categories/:id : supprimer une catégorie (gérant seulement)
+  @Roles(Role.MANAGER)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.remove(id);

@@ -2,7 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { LoginDto } from '../users/dto/login.dto';
 import { RegisterDto } from '../users/dto/register.dto';
 import { AuthService } from './auth.service';
-import { Public } from './decorators/public.decorator';
+import { Public } from './decorator/public.decorator';
 
 // Toutes les routes de ce contrôleur commencent par /auth
 @Controller('auth')

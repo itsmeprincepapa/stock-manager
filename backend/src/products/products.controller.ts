@@ -9,6 +9,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { Role } from '../users/user.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -18,22 +20,21 @@ import { ProductsService } from './products.service';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  // POST /products : créer un produit
+  // POST /products : créer un produit (gérant seulement)
+  @Roles(Role.MANAGER)
   @Post()
   create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }
 
-  // GET /products : lister les produits.
-  // @Query('search') récupère le paramètre d'URL facultatif (ex. /products?search=iphone)
+  // GET /products : lister les produits, avec recherche facultative (?search=iphone)
   @Get()
   findAll(@Query('search') search?: string) {
     return this.productsService.findAll(search);
   }
 
   // GET /products/low-stock : produits dont le stock est faible.
-  // ATTENTION : cette route doit être placée AVANT "GET /products/:id".
-  // Sinon NestJS prendrait "low-stock" pour un id et renverrait une erreur.
+  // Cette route doit rester AVANT "GET /products/:id".
   @Get('low-stock')
   findLowStock() {
     return this.productsService.findLowStock();
@@ -45,7 +46,8 @@ export class ProductsController {
     return this.productsService.findOne(id);
   }
 
-  // PATCH /products/:id : modifier un produit (seulement les champs envoyés)
+  // PATCH /products/:id : modifier un produit (gérant seulement)
+  @Roles(Role.MANAGER)
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -54,7 +56,8 @@ export class ProductsController {
     return this.productsService.update(id, dto);
   }
 
-  // DELETE /products/:id : supprimer un produit
+  // DELETE /products/:id : supprimer un produit (gérant seulement)
+  @Roles(Role.MANAGER)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.productsService.remove(id);

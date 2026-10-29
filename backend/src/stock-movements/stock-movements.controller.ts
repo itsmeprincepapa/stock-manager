@@ -6,6 +6,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Roles } from '../auth/decorator/roles.decorator';
+import { Role } from '../users/user.entity';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
 import { StockMovementsService } from './stock-movements.service';
 
@@ -14,15 +16,15 @@ import { StockMovementsService } from './stock-movements.service';
 export class StockMovementsController {
   constructor(private readonly stockMovementsService: StockMovementsService) {}
 
-  // POST /stock-movements : enregistrer un mouvement (entrée, sortie ou ajustement)
+  // POST /stock-movements : enregistrer un mouvement (gérant seulement)
+  @Roles(Role.MANAGER)
   @Post()
   create(@Body() dto: CreateStockMovementDto) {
     return this.stockMovementsService.create(dto);
   }
 
-  // GET /stock-movements : voir l'historique.
-  // Paramètre facultatif : /stock-movements?productId=1 pour un seul produit.
-  // "optional: true" : si productId n'est pas envoyé, on ne renvoie pas d'erreur.
+  // GET /stock-movements : voir l'historique (tout utilisateur connecté).
+  // Paramètre facultatif : /stock-movements?productId=1
   @Get()
   findAll(
     @Query('productId', new ParseIntPipe({ optional: true }))
