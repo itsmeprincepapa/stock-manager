@@ -1,0 +1,10 @@
+{
+  // Reprend toute la configuration normale du projet
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Racine explicite des sources : le dossier backend, qui contient src ET test
+    "rootDir": "."
+  },
+  // Les fichiers concernés : le code de l'application et les tests
+  "include": ["src/**/*", "test/**/*"]
+}
