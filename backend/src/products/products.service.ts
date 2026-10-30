@@ -6,11 +6,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Like, QueryFailedError, Repository } from 'typeorm';
 import { CategoriesService } from '../categories/categories.service';
+import { Paginated, toPaginated } from '../common/paginated';
 import {
   MovementType,
   StockMovement,
 } from '../stock-movements/stock-movement.entity';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductsQueryDto } from './dto/products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './product.entity';
 
@@ -50,7 +52,6 @@ export class ProductsService {
       );
 
       // S'il y a du stock au départ, on l'écrit dans l'historique
-      // pour que la quantité du produit soit toujours expliquée par des mouvements.
       if (initialQuantity > 0) {
         await manager.save(
           manager.create(StockMovement, {
@@ -66,19 +67,32 @@ export class ProductsService {
     });
   }
 
-  // LISTER les produits, avec une recherche facultative par nom.
-  // Exemple : GET /products?search=iphone
-  findAll(search?: string): Promise<Product[]> {
-    return this.productsRepository.find({
+  // LISTER les produits, une page à la fois, avec une recherche facultative par nom.
+  // Exemple : GET /products?search=iphone&page=2&limit=10
+  async findAll(query: ProductsQueryDto): Promise<Paginated<Product>> {
+    const { page, limit, search } = query;
+
+    // findAndCount fait DEUX choses : renvoie les éléments de la page ET le nombre total
+    // (le total sert à calculer le nombre de pages).
+    const [products, total] = await this.productsRepository.findAndCount({
       // Like avec % : cherche les produits dont le nom CONTIENT le texte
       where: search ? { name: Like(`%${search}%`) } : {},
       // relations : charge aussi la catégorie de chaque produit
       relations: { category: true },
-      order: { name: 'ASC' },
+      // Deux critères de tri : si deux produits ont le même nom, l'id les départage.
+      // Sans ça, l'ordre pourrait varier d'une page à l'autre (un produit apparaîtrait deux fois, un autre jamais).
+      order: { name: 'ASC', id: 'ASC' },
+      // skip = combien de lignes sauter, take = combien en prendre.
+      // Page 3 avec 20 par page : on saute 40 lignes, on en prend 20.
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return toPaginated(products, total, page, limit);
   }
 
   // LISTER les produits dont le stock est faible : quantité <= seuil d'alerte
+  // (pas paginée : la liste reste courte, c'est une liste d'alertes)
   findLowStock(): Promise<Product[]> {
     // On compare deux colonnes entre elles, ce qui demande un QueryBuilder
     return this.productsRepository

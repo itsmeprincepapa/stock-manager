@@ -14,6 +14,8 @@ import {
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SaleItem } from './sale-item.entity';
 import { Sale, SaleStatus } from './sale.entity';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { Paginated, toPaginated } from '../common/paginated';
 
 @Injectable()
 export class SalesService {
@@ -177,12 +179,21 @@ export class SalesService {
     });
   }
 
-  // LISTER les ventes, de la plus récente à la plus ancienne
-  findAll(): Promise<Sale[]> {
-    return this.salesRepository.find({
+  // LISTER les ventes, une page à la fois, de la plus récente à la plus ancienne
+  async findAll(query: PaginationQueryDto): Promise<Paginated<Sale>> {
+    const { page, limit } = query;
+
+    // findAndCount renvoie la page demandée ET le nombre total de ventes
+    const [sales, total] = await this.salesRepository.findAndCount({
       relations: { items: { product: true } },
-      order: { createdAt: 'DESC' },
+      // Tri stable : si deux ventes ont la même date, l'id les départage
+      order: { createdAt: 'DESC', id: 'DESC' },
+      // skip = combien de ventes sauter, take = combien en prendre
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return toPaginated(sales, total, page, limit);
   }
 
   // RÉCUPÉRER une vente par son id

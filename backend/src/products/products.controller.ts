@@ -12,6 +12,7 @@ import {
 import { Roles } from '../auth/decorator/roles.decorator';
 import { Role } from '../users/user.entity';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductsQueryDto } from './dto/products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
 
@@ -27,10 +28,12 @@ export class ProductsController {
     return this.productsService.create(dto);
   }
 
-  // GET /products : lister les produits, avec recherche facultative (?search=iphone)
+  // GET /products : lister les produits, paginés.
+  // @Query() sans nom récupère TOUS les paramètres d'URL et les valide avec ProductsQueryDto
+  // (page, limit, search). Un paramètre inconnu est refusé.
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.productsService.findAll(search);
+  findAll(@Query() query: ProductsQueryDto) {
+    return this.productsService.findAll(query);
   }
 
   // GET /products/low-stock : produits dont le stock est faible.

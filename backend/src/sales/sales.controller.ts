@@ -7,11 +7,13 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { Roles } from '../auth/decorator/roles.decorator';
 import { Role } from '../users/user.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalesService } from './sales.service';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 // Toutes les routes de ce contrôleur commencent par /sales
 @Controller('sales')
@@ -24,10 +26,10 @@ export class SalesController {
     return this.salesService.create(dto);
   }
 
-  // GET /sales : lister les ventes, les plus récentes d'abord
+    // GET /sales : lister les ventes, paginées (?page=1&limit=20)
   @Get()
-  findAll() {
-    return this.salesService.findAll();
+  findAll(@Query() query: PaginationQueryDto) {
+    return this.salesService.findAll(query);
   }
 
   // GET /sales/:id : voir une vente avec ses lignes

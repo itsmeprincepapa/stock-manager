@@ -8,6 +8,8 @@ import { DataSource, Repository } from 'typeorm';
 import { Product } from '../products/product.entity';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
 import { MovementType, StockMovement } from './stock-movement.entity';
+import { Paginated, toPaginated } from '../common/paginated';
+import { StockMovementsQueryDto } from './dto/stock-movements-query.dto';
 
 @Injectable()
 export class StockMovementsService {
@@ -78,13 +80,22 @@ export class StockMovementsService {
     });
   }
 
-  // LISTER l'historique, du plus récent au plus ancien.
+    // LISTER l'historique, une page à la fois, du plus récent au plus ancien.
   // Si productId est fourni, on ne garde que les mouvements de ce produit.
-  findAll(productId?: number): Promise<StockMovement[]> {
-    return this.movementsRepository.find({
+  async findAll(
+    query: StockMovementsQueryDto,
+  ): Promise<Paginated<StockMovement>> {
+    const { page, limit, productId } = query;
+
+    const [movements, total] = await this.movementsRepository.findAndCount({
       where: productId ? { product: { id: productId } } : {},
       relations: { product: true },
-      order: { createdAt: 'DESC' },
+      // Tri stable : l'id départage les mouvements créés à la même seconde
+      order: { createdAt: 'DESC', id: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return toPaginated(movements, total, page, limit);
   }
 }
