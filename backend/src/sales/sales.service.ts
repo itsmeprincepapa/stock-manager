@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,7 +13,7 @@ import {
 } from '../stock-movements/stock-movement.entity';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SaleItem } from './sale-item.entity';
-import { Sale } from './sale.entity';
+import { Sale, SaleStatus } from './sale.entity';
 
 @Injectable()
 export class SalesService {
@@ -20,7 +21,7 @@ export class SalesService {
     // Repository pour LIRE les ventes
     @InjectRepository(Sale)
     private readonly salesRepository: Repository<Sale>,
-    // DataSource : permet d'ouvrir une transaction pour ENREGISTRER une vente
+    // DataSource : permet d'ouvrir une transaction pour ENREGISTRER ou ANNULER une vente
     private readonly dataSource: DataSource,
   ) {}
 
@@ -28,16 +29,14 @@ export class SalesService {
   async create(dto: CreateSaleDto): Promise<Sale> {
     // Si le même produit apparaît plusieurs fois dans le panier,
     // on additionne ses quantités pour n'avoir qu'une ligne par produit.
-    // Map = un dictionnaire : clé = id du produit, valeur = quantité totale.
     const quantities = new Map<number, number>();
     for (const item of dto.items) {
       const current = quantities.get(item.productId) ?? 0;
       quantities.set(item.productId, current + item.quantity);
     }
 
-    // On traite les produits dans l'ordre croissant des id.
-    // Ça évite un blocage mutuel quand deux ventes se font en même temps
-    // sur les mêmes produits (chacune attendrait l'autre).
+    // On traite les produits dans l'ordre croissant des id pour éviter
+    // les blocages mutuels entre deux ventes simultanées.
     const productIds = [...quantities.keys()].sort((a, b) => a - b);
 
     // TRANSACTION : tout réussit ensemble, ou tout est annulé.
@@ -48,8 +47,7 @@ export class SalesService {
       for (const productId of productIds) {
         const quantity = quantities.get(productId) as number;
 
-        // On récupère le produit en le verrouillant, pour que personne
-        // d'autre ne modifie son stock pendant qu'on fait la vente.
+        // On récupère le produit en le verrouillant
         const product = await manager.findOne(Product, {
           where: { id: productId },
           lock: { mode: 'pessimistic_write' },
@@ -69,8 +67,7 @@ export class SalesService {
         product.quantity -= quantity;
         await manager.save(product);
 
-        // On prépare la ligne de vente.
-        // Le prix vient de la base (pas du client) et on le fige dans unitPrice.
+        // La ligne de vente : le prix vient de la base et est figé dans unitPrice
         saleItems.push(
           manager.create(SaleItem, {
             product,
@@ -79,13 +76,11 @@ export class SalesService {
           }),
         );
 
-        // On ajoute au total de la vente
         total += product.price * quantity;
       }
 
-      // On enregistre la vente avec toutes ses lignes (cascade: true dans l'entité).
-      // Math.round(... * 100) / 100 arrondit à 2 décimales
-      // et évite les résultats du type 0.30000000000000004.
+      // On enregistre la vente avec ses lignes (cascade: true dans l'entité).
+      // L'arrondi à 2 décimales évite les résultats du type 0.30000000000000004.
       const sale = await manager.save(
         manager.create(Sale, {
           total: Math.round(total * 100) / 100,
@@ -93,8 +88,7 @@ export class SalesService {
         }),
       );
 
-      // On enregistre un mouvement de stock OUT pour chaque ligne,
-      // pour que l'historique du stock reste complet.
+      // Un mouvement de stock OUT par ligne, pour garder l'historique complet
       for (const item of saleItems) {
         await manager.save(
           manager.create(StockMovement, {
@@ -109,6 +103,75 @@ export class SalesService {
       // On renvoie la vente complète (lignes + produits)
       return manager.findOneOrFail(Sale, {
         where: { id: sale.id },
+        relations: { items: { product: true } },
+      });
+    });
+  }
+
+  // ANNULER une vente : remet le stock et garde la trace de l'annulation
+  async cancel(id: number): Promise<Sale> {
+    // TRANSACTION : le stock, les mouvements et le statut changent ensemble, ou pas du tout
+    return this.dataSource.transaction(async (manager) => {
+      // 1. On verrouille la vente. Si deux annulations arrivent en même temps,
+      // la seconde attend la fin de la première puis voit le statut CANCELLED.
+      // (On ne charge pas les lignes ici : on verrouille la vente seule.)
+      const sale = await manager.findOne(Sale, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!sale) {
+        throw new NotFoundException('Vente introuvable.');
+      }
+
+      // 2. On refuse d'annuler deux fois la même vente (sinon le stock serait remis deux fois)
+      if (sale.status === SaleStatus.CANCELLED) {
+        throw new ConflictException('Cette vente est déjà annulée.');
+      }
+
+      // 3. On charge les lignes de la vente avec leur produit
+      const items = await manager.find(SaleItem, {
+        where: { sale: { id } },
+        relations: { product: true },
+      });
+
+      // Même précaution que pour la vente : on traite les produits dans l'ordre des id
+      items.sort((a, b) => a.product.id - b.product.id);
+
+      // 4. Pour chaque ligne : on rend la quantité au stock et on l'écrit dans l'historique
+      for (const item of items) {
+        const product = await manager.findOne(Product, {
+          where: { id: item.product.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!product) {
+          throw new NotFoundException(
+            `Produit n°${item.product.id} introuvable.`,
+          );
+        }
+
+        // Le stock augmente de la quantité qui avait été vendue
+        product.quantity += item.quantity;
+        await manager.save(product);
+
+        // Mouvement IN qui explique pourquoi le stock remonte
+        await manager.save(
+          manager.create(StockMovement, {
+            product,
+            type: MovementType.IN,
+            quantity: item.quantity,
+            reason: `Annulation vente n°${sale.id}`,
+          }),
+        );
+      }
+
+      // 5. On marque la vente comme annulée, avec la date
+      sale.status = SaleStatus.CANCELLED;
+      sale.cancelledAt = new Date();
+      await manager.save(sale);
+
+      // On renvoie la vente complète
+      return manager.findOneOrFail(Sale, {
+        where: { id },
         relations: { items: { product: true } },
       });
     });

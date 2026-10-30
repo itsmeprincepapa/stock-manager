@@ -4,21 +4,27 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, Like, QueryFailedError, Repository } from 'typeorm';
 import { CategoriesService } from '../categories/categories.service';
+import {
+  MovementType,
+  StockMovement,
+} from '../stock-movements/stock-movement.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './product.entity';
 
 @Injectable()
 export class ProductsService {
-  // On reçoit deux outils :
-  // - le repository des produits (pour lire/écrire dans la table "products")
-  // - le service des catégories (pour retrouver une catégorie à partir de son id)
+  // On reçoit trois outils :
+  // - le repository des produits (lecture/écriture simple)
+  // - le service des catégories (retrouver une catégorie à partir de son id)
+  // - le DataSource (ouvrir une transaction)
   constructor(
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>,
     private readonly categoriesService: CategoriesService,
+    private readonly dataSource: DataSource,
   ) {}
 
   // CRÉER un produit
@@ -27,14 +33,37 @@ export class ProductsService {
     const { categoryId, ...data } = dto;
 
     // Si un categoryId est envoyé, on retrouve la catégorie correspondante.
-    // findOne lève une erreur 404 si elle n'existe pas.
+    // findOne lève une erreur 404 si elle n'existe pas (avant de toucher au stock).
     const category = categoryId
       ? await this.categoriesService.findOne(categoryId)
       : null;
 
-    // create() prépare l'objet, save() l'enregistre en base (INSERT)
-    const product = this.productsRepository.create({ ...data, category });
-    return this.productsRepository.save(product);
+    // Quantité de départ (0 si le client n'en a pas envoyé)
+    const initialQuantity = dto.quantity ?? 0;
+
+    // TRANSACTION : la création du produit et son mouvement de stock initial
+    // réussissent ensemble, ou sont annulés ensemble.
+    return this.dataSource.transaction(async (manager) => {
+      // On enregistre le produit
+      const product = await manager.save(
+        manager.create(Product, { ...data, category }),
+      );
+
+      // S'il y a du stock au départ, on l'écrit dans l'historique
+      // pour que la quantité du produit soit toujours expliquée par des mouvements.
+      if (initialQuantity > 0) {
+        await manager.save(
+          manager.create(StockMovement, {
+            product,
+            type: MovementType.IN,
+            quantity: initialQuantity,
+            reason: 'Stock initial',
+          }),
+        );
+      }
+
+      return product;
+    });
   }
 
   // LISTER les produits, avec une recherche facultative par nom.
@@ -51,7 +80,7 @@ export class ProductsService {
 
   // LISTER les produits dont le stock est faible : quantité <= seuil d'alerte
   findLowStock(): Promise<Product[]> {
-    // Ici on compare deux colonnes entre elles, ce qui demande un QueryBuilder
+    // On compare deux colonnes entre elles, ce qui demande un QueryBuilder
     return this.productsRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
@@ -72,7 +101,7 @@ export class ProductsService {
     return product;
   }
 
-  // MODIFIER un produit
+  // MODIFIER un produit (la quantité n'est plus modifiable ici : voir UpdateProductDto)
   async update(id: number, dto: UpdateProductDto): Promise<Product> {
     // Erreur 404 automatique si le produit n'existe pas
     const product = await this.findOne(id);
@@ -86,7 +115,7 @@ export class ProductsService {
         : null;
     }
 
-    // On copie les autres champs reçus (nom, prix, quantité, seuil) puis on enregistre
+    // On copie les autres champs reçus (nom, prix, seuil) puis on enregistre
     Object.assign(product, data);
     return this.productsRepository.save(product);
   }

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../products/product.entity';
 import { SaleItem } from '../sales/sale-item.entity';
-import { Sale } from '../sales/sale.entity';
+import { Sale, SaleStatus } from '../sales/sale.entity';
 
 // Forme des résultats bruts renvoyés par la base (les nombres arrivent en texte)
 interface TotalsRow {
@@ -83,6 +83,8 @@ export class DashboardService {
       .select('COUNT(sale.id)', 'count')
       .addSelect('COALESCE(SUM(sale.total), 0)', 'total')
       .where('sale.createdAt >= :since', { since })
+      // Les ventes annulées ne comptent pas
+      .andWhere('sale.status = :status', { status: SaleStatus.COMPLETED })
       .getRawOne<TotalsRow>();
 
     // MySQL renvoie les sommes sous forme de texte : on les convertit en nombres
@@ -106,6 +108,8 @@ export class DashboardService {
       // Chiffre d'affaires du produit : quantité x prix unitaire de chaque ligne
       .addSelect('SUM(item.quantity * item.unitPrice)', 'revenue')
       .where('sale.createdAt >= :since', { since })
+      // Les lignes des ventes annulées ne comptent pas
+      .andWhere('sale.status = :status', { status: SaleStatus.COMPLETED })
       // groupBy : un résultat par produit, au lieu d'un par ligne de vente
       .groupBy('product.id')
       .addGroupBy('product.name')
@@ -129,6 +133,8 @@ export class DashboardService {
       .select("DATE_FORMAT(sale.createdAt, '%Y-%m-%d')", 'day')
       .addSelect('COALESCE(SUM(sale.total), 0)', 'total')
       .where('sale.createdAt >= :since', { since })
+      // Les ventes annulées ne comptent pas
+      .andWhere('sale.status = :status', { status: SaleStatus.COMPLETED })
       .groupBy("DATE_FORMAT(sale.createdAt, '%Y-%m-%d')")
       .orderBy('day', 'ASC')
       .getRawMany<DailyRow>();
