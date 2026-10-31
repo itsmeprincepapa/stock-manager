@@ -4,3 +4,6 @@
 process.env.DB_NAME = 'stock_manager_test';
 process.env.JWT_SECRET = 'secret-utilise-uniquement-pour-les-tests';
 process.env.JWT_EXPIRES_IN = '1h';
+
+// Limite générale relevée pour les tests (les limites strictes du login restent actives)
+process.env.THROTTLE_LIMIT = '100000';

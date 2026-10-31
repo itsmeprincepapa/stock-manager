@@ -330,4 +330,198 @@ describe('Stock manager (e2e)', () => {
         .expect(400);
     });
   });
+  
+  // ---------------------------------------------------------------------------
+  describe('Annulation d’une vente', () => {
+    let saleId: number;
+    let stockAfterSale: number;
+
+    it('prépare une vente à annuler', async () => {
+      const response = await http()
+        .post('/sales')
+        .set(asManager())
+        .send({ items: [{ productId: productBId, quantity: 2 }] })
+        .expect(201);
+
+      saleId = response.body.id;
+      // Stock du chargeur APRÈS la vente et AVANT l'annulation
+      stockAfterSale = (await getProduct(productBId)).quantity;
+    });
+
+    it('annule la vente, remet le stock et écrit un mouvement', async () => {
+      const response = await http()
+        .post(`/sales/${saleId}/cancel`)
+        .set(asManager())
+        .expect(200);
+
+      expect(response.body.status).toBe('CANCELLED');
+      expect(response.body.cancelledAt).not.toBeNull();
+
+      // Le stock a retrouvé les 2 unités vendues
+      expect((await getProduct(productBId)).quantity).toBe(stockAfterSale + 2);
+
+      // Un mouvement IN explique pourquoi le stock est remonté
+      const movements = await http()
+        .get(`/stock-movements?productId=${productBId}&limit=100`)
+        .set(asManager())
+        .expect(200);
+
+      const cancelMovement = movements.body.data.find(
+        (movement: { reason: string }) =>
+          movement.reason === `Annulation vente n°${saleId}`,
+      );
+      expect(cancelMovement).toBeDefined();
+      expect(cancelMovement.type).toBe('IN');
+      expect(cancelMovement.quantity).toBe(2);
+    });
+
+    it('refuse d’annuler deux fois la même vente, sans toucher au stock', async () => {
+      await http()
+        .post(`/sales/${saleId}/cancel`)
+        .set(asManager())
+        .expect(409);
+
+      // Le stock n'a pas été remis une deuxième fois
+      expect((await getProduct(productBId)).quantity).toBe(stockAfterSale + 2);
+    });
+
+    it('refuse d’annuler une vente inexistante', async () => {
+      await http().post('/sales/99999/cancel').set(asManager()).expect(404);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  describe('Rôles et tableau de bord', () => {
+    let sellerToken: string;
+    const asSeller = () => ({ Authorization: `Bearer ${sellerToken}` });
+
+    it('le gérant crée un compte vendeur', async () => {
+      const response = await http()
+        .post('/users')
+        .set(asManager())
+        .send({
+          name: 'Awa Test',
+          email: 'awa@test.com',
+          password: 'MotDePasse456',
+        })
+        .expect(201);
+
+      // Sans rôle précisé, le compte est un vendeur, et le mot de passe n'est jamais renvoyé
+      expect(response.body.role).toBe('SELLER');
+      expect(response.body.password).toBeUndefined();
+    });
+
+    it('le vendeur se connecte', async () => {
+      const response = await http()
+        .post('/auth/login')
+        .send({ email: 'awa@test.com', password: 'MotDePasse456' })
+        .expect(200);
+
+      sellerToken = response.body.accessToken;
+    });
+
+    it('le vendeur peut consulter les produits et vendre', async () => {
+      await http().get('/products').set(asSeller()).expect(200);
+
+      await http()
+        .post('/sales')
+        .set(asSeller())
+        .send({ items: [{ productId: productBId, quantity: 1 }] })
+        .expect(201);
+    });
+
+    it('le vendeur ne peut pas modifier le catalogue', async () => {
+      await http()
+        .post('/categories')
+        .set(asSeller())
+        .send({ name: 'Interdit' })
+        .expect(403);
+
+      await http()
+        .delete(`/products/${productBId}`)
+        .set(asSeller())
+        .expect(403);
+    });
+
+    it('le vendeur ne peut pas gérer les comptes, annuler une vente ni voir le tableau de bord', async () => {
+      await http().get('/users').set(asSeller()).expect(403);
+      await http().post('/sales/1/cancel').set(asSeller()).expect(403);
+      await http().get('/dashboard').set(asSeller()).expect(403);
+    });
+
+    it('le tableau de bord ignore les ventes annulées', async () => {
+      // On recalcule à la main depuis la liste des ventes
+      const sales = await http()
+        .get('/sales?limit=100')
+        .set(asManager())
+        .expect(200);
+
+      const completed = sales.body.data.filter(
+        (sale: { status: string }) => sale.status === 'COMPLETED',
+      );
+      const expectedTotal = completed.reduce(
+        (sum: number, sale: { total: number }) => sum + sale.total,
+        0,
+      );
+
+      const dashboard = await http()
+        .get('/dashboard')
+        .set(asManager())
+        .expect(200);
+
+      // La vente annulée plus haut ne doit être comptée ni dans le nombre, ni dans le total
+      expect(dashboard.body.salesToday.count).toBe(completed.length);
+      expect(dashboard.body.salesToday.total).toBeCloseTo(expectedTotal, 2);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  describe('Concurrence', () => {
+    it('quand 5 ventes visent le dernier exemplaire en même temps, une seule réussit', async () => {
+      // Un produit avec UN SEUL exemplaire en stock
+      const created = await http()
+        .post('/products')
+        .set(asManager())
+        .send({ name: 'Pièce unique', price: 1000, quantity: 1 })
+        .expect(201);
+      const lastItemId: number = created.body.id;
+
+      // 5 ventes envoyées exactement en même temps (Promise.all lance toutes les requêtes ensemble)
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          http()
+            .post('/sales')
+            .set(asManager())
+            .send({ items: [{ productId: lastItemId, quantity: 1 }] }),
+        ),
+      );
+
+      const statuses = results.map((result) => result.status);
+      const successes = statuses.filter((status) => status === 201);
+      const refusals = statuses.filter((status) => status === 400);
+
+      // Une seule vente réussit, les quatre autres sont refusées pour stock insuffisant
+      expect(successes).toHaveLength(1);
+      expect(refusals).toHaveLength(4);
+
+      // Le stock est à 0, jamais négatif : sans verrou, on aurait pu vendre plusieurs fois
+      expect((await getProduct(lastItemId)).quantity).toBe(0);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  describe('Sécurité', () => {
+    it('bloque la connexion après trop de tentatives (429)', async () => {
+      // La limite est de 5 par minute sur /auth/login, et une connexion a déjà eu lieu plus haut
+      let lastStatus = 0;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const response = await http()
+          .post('/auth/login')
+          .send({ email: 'gerant@test.com', password: 'mauvais-mot-de-passe' });
+        lastStatus = response.status;
+      }
+
+      expect(lastStatus).toBe(429);
+    });
+  });
 });

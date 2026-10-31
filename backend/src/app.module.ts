@@ -32,7 +32,11 @@ import { UsersModule } from './users/users.module';
     // Limitation de requêtes : par défaut, 100 requêtes par minute et par adresse IP.
     // ttl est en millisecondes (60000 = 1 minute).
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60000, limit: 100 }],
+            // Limite générale : 100 requêtes par minute, sauf si THROTTLE_LIMIT est défini
+      // (les tests relèvent cette limite pour ne pas être bloqués par erreur).
+      throttlers: [
+        { ttl: 60000, limit: Number(process.env.THROTTLE_LIMIT ?? 100) },
+      ],
       errorMessage: 'Trop de requêtes. Réessayez dans une minute.',
     }),
     AuthModule,
