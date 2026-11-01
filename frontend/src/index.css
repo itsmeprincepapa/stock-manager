@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Police par défaut de toute l'application */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}

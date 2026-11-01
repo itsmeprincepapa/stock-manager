@@ -1,10 +1,18 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App'
+import { AuthProvider } from './auth/AuthProvider'
 import './index.css'
-import App from './App.tsx'
 
+// BrowserRouter : active les pages (les adresses de l'URL).
+// AuthProvider : met l'utilisateur connecté à disposition de toute l'application.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
   </StrictMode>,
 )

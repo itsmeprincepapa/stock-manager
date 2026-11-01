@@ -1,13 +1,46 @@
-// Composant principal : pour l'instant, une page pour vérifier que Tailwind fonctionne
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { useAuth } from './auth/auth-context'
+import { ProtectedRoute } from './auth/ProtectedRoute'
+import { AppLayout } from './components/AppLayout'
+import { LoginPage } from './pages/LoginPage'
+import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ProductsPage } from './pages/ProductsPage'
+
+// Sur "/", on envoie chacun vers sa page d'accueil :
+// le gérant vers le tableau de bord, le vendeur vers les produits
+// (l'API refuse le tableau de bord aux vendeurs).
+function HomeRedirect() {
+  const { isManager } = useAuth()
+  return <Navigate to={isManager ? '/dashboard' : '/products'} replace />
+}
+
+// La carte des pages : quelle adresse affiche quelle page
 function App() {
   return (
-    // Les classes Tailwind décrivent le style :
-    // flex + items-center + justify-center = contenu centré,
-    // min-h-screen = hauteur de l'écran, bg-slate-100 = fond gris clair
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
-      {/* text-3xl = grand texte, font-bold = gras, text-indigo-600 = couleur */ }
-      <h1 className="text-3xl font-bold text-indigo-600">Stock Manager</h1>
-    </div>
+    <Routes>
+      {/* Page publique */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Tout ce qui est dans ce bloc demande d'être connecté */}
+      <Route element={<ProtectedRoute />}>
+        {/* ... et s'affiche dans le cadre avec le menu (AppLayout) */}
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/products" element={<ProductsPage />} />
+          <Route path="/sales" element={<PlaceholderPage title="Ventes" />} />
+          <Route path="/stock" element={<PlaceholderPage title="Historique du stock" />} />
+
+          {/* Ces pages sont réservées au gérant */}
+          <Route element={<ProtectedRoute managerOnly />}>
+            <Route path="/dashboard" element={<PlaceholderPage title="Tableau de bord" />} />
+            <Route path="/users" element={<PlaceholderPage title="Utilisateurs" />} />
+          </Route>
+        </Route>
+      </Route>
+
+      {/* Toute autre adresse renvoie vers l'accueil */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
