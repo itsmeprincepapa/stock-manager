@@ -37,6 +37,12 @@ const MENU = [
     managerOnly: false,
     icon: ['M21 8l-9-5-9 5 9 5 9-5z', 'M3 8v8l9 5 9-5V8', 'M12 13v8'],
   },
+    {
+    to: '/sales/new',
+    label: 'Nouvelle vente',
+    managerOnly: false,
+    icon: ['M12 21a9 9 0 100-18 9 9 0 000 18z', 'M12 8v8', 'M8 12h8'],
+  },
   {
     to: '/sales',
     label: 'Ventes',
@@ -96,6 +102,7 @@ export function AppLayout() {
             <NavLink
               key={item.to}
               to={item.to}
+              end
               onClick={() => setOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${

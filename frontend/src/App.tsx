@@ -5,6 +5,7 @@ import { AppLayout } from './components/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProductsPage } from './pages/ProductsPage'
+   import { NewSalePage } from './pages/NewSalePage'
 
 // Sur "/", on envoie chacun vers sa page d'accueil :
 // le gérant vers le tableau de bord, le vendeur vers les produits
@@ -28,6 +29,7 @@ function App() {
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/sales" element={<PlaceholderPage title="Ventes" />} />
+             <Route path="/sales/new" element={<NewSalePage />} />
           <Route path="/stock" element={<PlaceholderPage title="Historique du stock" />} />
 
           {/* Ces pages sont réservées au gérant */}

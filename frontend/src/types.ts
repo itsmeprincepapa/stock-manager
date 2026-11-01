@@ -42,3 +42,21 @@ export interface Paginated<T> {
     totalPages: number
   }
 }
+
+// Une ligne d'une vente : un produit, une quantité, et le prix au moment de la vente
+export interface SaleItem {
+  id: number
+  quantity: number
+  unitPrice: number
+  product: Product
+}
+
+// Une vente, telle que l'API la renvoie
+export interface Sale {
+  id: number
+  total: number
+  status: 'COMPLETED' | 'CANCELLED'
+  cancelledAt: string | null
+  createdAt: string // une date, envoyée en texte par l'API
+  items: SaleItem[]
+}
