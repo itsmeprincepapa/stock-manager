@@ -42,3 +42,10 @@ export async function updateProduct(id: number, input: Omit<ProductInput, 'quant
 export async function deleteProduct(id: number) {
   await api.delete(`/products/${id}`)
 }
+
+// Les produits dont le stock est faible (quantité inférieure ou égale au seuil d'alerte).
+// Cette liste n'est pas paginée : elle reste courte, c'est une liste d'alertes.
+export async function fetchLowStock(signal?: AbortSignal) {
+  const { data } = await api.get<Product[]>('/products/low-stock', { signal })
+  return data
+}

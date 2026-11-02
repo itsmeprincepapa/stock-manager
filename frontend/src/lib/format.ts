@@ -22,3 +22,14 @@ const dateTime = new Intl.DateTimeFormat('fr-FR', {
 export function formatDateTime(value: string): string {
   return dateTime.format(new Date(value))
 }
+
+// Formate un grand nombre en version courte : 650000 devient « 650 k ».
+// Utile pour écrire des valeurs au-dessus des barres d'un graphique, où la place manque.
+const compact = new Intl.NumberFormat('fr-FR', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+export function formatCompact(value: number): string {
+  return compact.format(value)
+}

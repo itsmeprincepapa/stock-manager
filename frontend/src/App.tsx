@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/auth-context'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppLayout } from './components/AppLayout'
+import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { NewSalePage } from './pages/NewSalePage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
@@ -36,7 +37,7 @@ function App() {
 
           {/* Ces pages sont réservées au gérant */}
           <Route element={<ProtectedRoute managerOnly />}>
-            <Route path="/dashboard" element={<PlaceholderPage title="Tableau de bord" />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/users" element={<PlaceholderPage title="Utilisateurs" />} />
           </Route>
         </Route>

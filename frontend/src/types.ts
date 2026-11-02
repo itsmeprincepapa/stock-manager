@@ -73,3 +73,15 @@ export interface StockMovement {
   createdAt: string
   product: Product
 }
+
+// Ce que renvoie GET /dashboard (gérant seulement)
+export interface DashboardStats {
+  salesToday: { count: number; total: number }
+  salesThisMonth: { count: number; total: number }
+  productCount: number
+  lowStockCount: number
+  // Les 5 produits les plus vendus sur 30 jours
+  topProducts: { productId: number; name: string; quantitySold: number; revenue: number }[]
+  // Le chiffre d'affaires par jour : seulement les jours où il y a eu des ventes
+  dailyRevenue: { day: string; total: number }[]
+}
