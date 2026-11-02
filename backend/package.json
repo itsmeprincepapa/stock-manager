@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+        "seed": "npm run build && node dist/seed.js",
         "migration:run": "npm run build && typeorm migration:run -d dist/data-source.js",
     "migration:revert": "npm run build && typeorm migration:revert -d dist/data-source.js",
     "migration:show": "npm run build && typeorm migration:show -d dist/data-source.js",

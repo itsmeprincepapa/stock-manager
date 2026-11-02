@@ -508,7 +508,133 @@ describe('Stock manager (e2e)', () => {
       expect((await getProduct(lastItemId)).quantity).toBe(0);
     });
   });
+  // ---------------------------------------------------------------------------
+  describe('Gestion des comptes', () => {
+    let managerId: number
+    let employeeId: number
+    let employeeToken: string
 
+    // Raccourci : l'en-tête d'authentification de l'employé créé dans ce groupe
+    const asEmployee = () => ({ Authorization: `Bearer ${employeeToken}` })
+
+    it('retrouve l’identifiant du gérant et crée un compte employé', async () => {
+      // On retrouve l'id du gérant dans la liste des comptes
+      const users = await http().get('/users').set(asManager()).expect(200)
+      managerId = users.body.find(
+        (account: { email: string }) => account.email === 'gerant@test.com',
+      ).id
+
+      // Puis on crée l'employé sur lequel portent les tests suivants
+      const created = await http()
+        .post('/users')
+        .set(asManager())
+        .send({
+          name: 'Marie Test',
+          email: 'marie@test.com',
+          password: 'AncienMotDePasse1',
+        })
+        .expect(201)
+
+      employeeId = created.body.id
+      expect(created.body.role).toBe('SELLER')
+    })
+
+    it('modifie le nom d’un compte, sans jamais renvoyer le mot de passe', async () => {
+      const response = await http()
+        .patch(`/users/${employeeId}`)
+        .set(asManager())
+        .send({ name: 'Marie Diop' })
+        .expect(200)
+
+      expect(response.body.name).toBe('Marie Diop')
+      expect(response.body.password).toBeUndefined()
+    })
+
+    it('refuse un email déjà utilisé par un autre compte', async () => {
+      await http()
+        .patch(`/users/${employeeId}`)
+        .set(asManager())
+        .send({ email: 'gerant@test.com' })
+        .expect(409)
+    })
+
+    it('réinitialise un mot de passe : le nouveau marche, l’ancien est refusé', async () => {
+      await http()
+        .patch(`/users/${employeeId}`)
+        .set(asManager())
+        .send({ password: 'NouveauMotDePasse1' })
+        .expect(200)
+
+      // L'ancien mot de passe ne marche plus
+      await http()
+        .post('/auth/login')
+        .send({ email: 'marie@test.com', password: 'AncienMotDePasse1' })
+        .expect(401)
+
+      // Le nouveau marche : on garde le token pour les tests suivants
+      const login = await http()
+        .post('/auth/login')
+        .send({ email: 'marie@test.com', password: 'NouveauMotDePasse1' })
+        .expect(200)
+
+      employeeToken = login.body.accessToken
+    })
+
+    it('interdit au gérant de supprimer ou de rétrograder son propre compte', async () => {
+      await http().delete(`/users/${managerId}`).set(asManager()).expect(400)
+
+      await http()
+        .patch(`/users/${managerId}`)
+        .set(asManager())
+        .send({ role: 'SELLER' })
+        .expect(400)
+
+      // Il est toujours gérant : rien n'a changé
+      const me = await http()
+        .get(`/users/${managerId}`)
+        .set(asManager())
+        .expect(200)
+      expect(me.body.role).toBe('MANAGER')
+    })
+
+    it('prend un changement de rôle en compte immédiatement, avec le même token', async () => {
+      // Vendeuse : la liste des comptes lui est interdite
+      await http().get('/users').set(asEmployee()).expect(403)
+
+      // Le gérant la promeut : le MÊME token donne tout de suite accès
+      await http()
+        .patch(`/users/${employeeId}`)
+        .set(asManager())
+        .send({ role: 'MANAGER' })
+        .expect(200)
+      await http().get('/users').set(asEmployee()).expect(200)
+
+      // Le gérant la rétrograde : l'accès est retiré tout de suite
+      await http()
+        .patch(`/users/${employeeId}`)
+        .set(asManager())
+        .send({ role: 'SELLER' })
+        .expect(200)
+      await http().get('/users').set(asEmployee()).expect(403)
+    })
+
+    it('coupe l’accès d’un compte supprimé tout de suite, sans attendre l’expiration du token', async () => {
+      // Avant la suppression : le token fonctionne
+      await http().get('/products').set(asEmployee()).expect(200)
+
+      await http()
+        .delete(`/users/${employeeId}`)
+        .set(asManager())
+        .expect(200)
+
+      // Après : le MÊME token, encore valide pour une heure, est refusé
+      await http().get('/products').set(asEmployee()).expect(401)
+    })
+
+    it('renvoie 404 pour un compte inexistant', async () => {
+      await http().delete('/users/99999').set(asManager()).expect(404)
+    })
+  })
   // ---------------------------------------------------------------------------
   describe('Sécurité', () => {
     it('bloque la connexion après trop de tentatives (429)', async () => {
