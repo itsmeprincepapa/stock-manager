@@ -7,6 +7,7 @@ import { NewSalePage } from './pages/NewSalePage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SalesPage } from './pages/SalesPage'
+import { StockPage } from './pages/StockPage'
 
 // Sur "/", on envoie chacun vers sa page d'accueil :
 // le gérant vers le tableau de bord, le vendeur vers les produits
@@ -31,7 +32,7 @@ function App() {
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/sales/new" element={<NewSalePage />} />
           <Route path="/sales" element={<SalesPage />} />
-          <Route path="/stock" element={<PlaceholderPage title="Historique du stock" />} />
+          <Route path="/stock" element={<StockPage />} />
 
           {/* Ces pages sont réservées au gérant */}
           <Route element={<ProtectedRoute managerOnly />}>

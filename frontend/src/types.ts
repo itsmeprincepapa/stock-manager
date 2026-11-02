@@ -60,3 +60,16 @@ export interface Sale {
   createdAt: string // une date, envoyée en texte par l'API
   items: SaleItem[]
 }
+
+// Les trois types de mouvement de stock (comme dans le backend)
+export type MovementType = 'IN' | 'OUT' | 'ADJUSTMENT'
+
+// Un mouvement de stock, tel que l'API le renvoie
+export interface StockMovement {
+  id: number
+  type: MovementType
+  quantity: number
+  reason: string | null
+  createdAt: string
+  product: Product
+}
