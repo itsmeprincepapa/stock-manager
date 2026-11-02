@@ -31,16 +31,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user)
   }
 
-  // Se déconnecter : on efface tout et on repasse l'état à "personne"
+  // Se déconnecter : on efface tout et on repasse l'état à « personne »
   function logout() {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     setUser(null)
   }
 
+  // Met à jour l'utilisateur connecté, dans le navigateur ET à l'écran.
+  // Le token ne change pas : seules les informations affichées changent.
+  function updateUser(next: User) {
+    localStorage.setItem(USER_KEY, JSON.stringify(next))
+    setUser(next)
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, isManager: user?.role === 'MANAGER', login, logout }}
+      value={{ user, isManager: user?.role === 'MANAGER', login, logout, updateUser }}
     >
       {children}
     </AuthContext.Provider>

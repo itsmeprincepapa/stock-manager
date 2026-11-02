@@ -9,6 +9,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SalesPage } from './pages/SalesPage'
 import { StockPage } from './pages/StockPage'
+   import { UsersPage } from './pages/UsersPage'
 
 // Sur "/", on envoie chacun vers sa page d'accueil :
 // le gérant vers le tableau de bord, le vendeur vers les produits
@@ -38,8 +39,7 @@ function App() {
           {/* Ces pages sont réservées au gérant */}
           <Route element={<ProtectedRoute managerOnly />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/users" element={<PlaceholderPage title="Utilisateurs" />} />
-          </Route>
+   <Route path="/users" element={<UsersPage />} />          </Route>
         </Route>
       </Route>
 

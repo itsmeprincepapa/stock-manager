@@ -33,3 +33,10 @@ const compact = new Intl.NumberFormat('fr-FR', {
 export function formatCompact(value: number): string {
   return compact.format(value)
 }
+
+// Formate une date seule, sans l'heure : « 2 nov. 2026 »
+const dateOnly = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' })
+
+export function formatDate(value: string): string {
+  return dateOnly.format(new Date(value))
+}
