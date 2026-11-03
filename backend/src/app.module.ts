@@ -18,23 +18,31 @@ import { UsersModule } from './users/users.module';
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'mysql',
-        host: config.get<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get<string>('DB_USERNAME'),
-        password: config.get<string>('DB_PASSWORD'),
-        database: config.get<string>('DB_NAME'),
-        autoLoadEntities: true,
-        // La structure de la base est désormais gérée UNIQUEMENT par les migrations :
-        // TypeORM ne modifie plus les tables tout seul (trop risqué pour des vraies données).
-        synchronize: false,
-        // Où se trouvent les migrations une fois compilées (dossier dist/migrations)
-        migrations: [__dirname + '/migrations/*.js'],
-        // Si DB_MIGRATIONS_RUN vaut "true" dans le .env, les migrations en attente
-        // sont appliquées automatiquement au démarrage de l'application.
-        migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
-      }),
+      useFactory: (config: ConfigService) => {
+        // Certificat de la base (format PEM). Sur un hébergeur, on le colle dans une
+        // variable d'environnement : les retours à la ligne y sont parfois écrits « \n »,
+        // on les remet en vrais retours à la ligne.
+        const sslCa = config.get<string>('DB_SSL_CA')?.replace(/\\n/g, '\n');
+
+        return {
+          type: 'mysql' as const,
+          host: config.get<string>('DB_HOST'),
+          port: config.get<number>('DB_PORT'),
+          username: config.get<string>('DB_USERNAME'),
+          password: config.get<string>('DB_PASSWORD'),
+          database: config.get<string>('DB_NAME'),
+          autoLoadEntities: true,
+          // La structure de la base est gérée UNIQUEMENT par les migrations
+          synchronize: false,
+          // Où se trouvent les migrations une fois compilées (dossier dist/migrations)
+          migrations: [__dirname + '/migrations/*.js'],
+          // Si DB_MIGRATIONS_RUN vaut « true », les migrations en attente s'appliquent au démarrage
+          migrationsRun: config.get<string>('DB_MIGRATIONS_RUN') === 'true',
+          // Connexion chiffrée ET vérifiée avec le certificat de la base, si on le fournit.
+          // En local (pas de DB_SSL_CA), la connexion reste telle qu'avant.
+          ssl: sslCa ? { ca: sslCa, rejectUnauthorized: true } : undefined,
+        };
+      },
     }),
     // Limitation de requêtes : 100 par minute et par IP, sauf si THROTTLE_LIMIT est défini
     // (les tests relèvent cette limite pour ne pas être bloqués par erreur).

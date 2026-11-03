@@ -1,12 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
-
+import { Public } from './auth/decorator/public.decorator';
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
-  @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  // GET /health : répond « ok » sans demander de connexion.
+  // Elle ne touche pas à la base : elle dit seulement que le serveur est en vie.
+  @Public()
+  @Get('health')
+  health() {
+    return { status: 'ok' };
   }
 }
