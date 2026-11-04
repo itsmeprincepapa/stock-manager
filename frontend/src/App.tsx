@@ -5,7 +5,7 @@ import { AppLayout } from './components/AppLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { NewSalePage } from './pages/NewSalePage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
+
 import { ProductsPage } from './pages/ProductsPage'
 import { SalesPage } from './pages/SalesPage'
 import { StockPage } from './pages/StockPage'
